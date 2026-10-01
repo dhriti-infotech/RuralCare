@@ -88,26 +88,23 @@ function RootNavigator() {
   const pathname = usePathname();
 
   useEffect(() => {
-    const subscription =
-      addProfessionalNotificationResponseListener(
-        (requestId) => {
-          router.push({
-            pathname: "/professional-requests",
-            params: { requestId },
-          });
-        }
-      );
-
-    void getInitialProfessionalNotificationRequestId().then(
+    const subscription = addProfessionalNotificationResponseListener(
       (requestId) => {
-        if (requestId) {
-          router.push({
-            pathname: "/professional-requests",
-            params: { requestId },
-          });
-        }
-      }
+        router.push({
+          pathname: "/professional-requests",
+          params: { requestId },
+        });
+      },
     );
+
+    void getInitialProfessionalNotificationRequestId().then((requestId) => {
+      if (requestId) {
+        router.push({
+          pathname: "/professional-requests",
+          params: { requestId },
+        });
+      }
+    });
 
     return () => subscription.remove();
   }, []);
@@ -136,8 +133,7 @@ function RootNavigator() {
       "/professional-profile",
     ];
 
-    const isProfessionalRoute =
-      professionalRoutes.includes(pathname);
+    const isProfessionalRoute = professionalRoutes.includes(pathname);
 
     if (!isProfessionalRoute) {
       return;
@@ -166,7 +162,7 @@ function RootNavigator() {
         router.replace("/professional-home");
 
         return true;
-      }
+      },
     );
 
     return () => subscription.remove();
@@ -174,40 +170,25 @@ function RootNavigator() {
 
   return (
     <Stack initialRouteName="index">
-      <Stack.Screen
-        name="index"
-        options={{ headerShown: false }}
-      />
+      <Stack.Screen name="index" options={{ headerShown: false }} />
 
-      <Stack.Screen
-        name="login"
-        options={{ headerShown: false }}
-      />
+      <Stack.Screen name="login" options={{ headerShown: false }} />
 
-      <Stack.Screen
-        name="register-user"
-        options={{ headerShown: false }}
-      />
+      <Stack.Screen name="register-user" options={{ headerShown: false }} />
 
       <Stack.Screen
         name="register-professional"
         options={{ headerShown: false }}
       />
 
-      <Stack.Screen
-        name="verify-otp"
-        options={{ headerShown: false }}
-      />
+      <Stack.Screen name="verify-otp" options={{ headerShown: false }} />
 
       <Stack.Screen
         name="professional-profile"
         options={{ headerShown: false }}
       />
 
-      <Stack.Screen
-        name="professional-home"
-        options={{ headerShown: false }}
-      />
+      <Stack.Screen name="professional-home" options={{ headerShown: false }} />
 
       <Stack.Screen
         name="professional-requests"
@@ -219,25 +200,16 @@ function RootNavigator() {
         options={{ headerShown: false }}
       />
 
-      <Stack.Screen
-        name="nurse-service-map"
-        options={{ headerShown: false }}
-      />
+      <Stack.Screen name="nurse-service-map" options={{ headerShown: false }} />
 
       <Stack.Screen
         name="professional-verification"
         options={{ headerShown: false }}
       />
 
-      <Stack.Screen
-        name="(tabs)"
-        options={{ headerShown: false }}
-      />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
-      <Stack.Screen
-        name="request-nurse"
-        options={{ headerShown: false }}
-      />
+      <Stack.Screen name="request-nurse" options={{ headerShown: false }} />
 
       <Stack.Screen
         name="available-professionals"
@@ -249,10 +221,10 @@ function RootNavigator() {
         options={{ headerShown: false }}
       />
 
-      <Stack.Screen
+      {/* <Stack.Screen
         name="rate-service"
         options={{ headerShown: false }}
-      />
+      /> */}
     </Stack>
   );
 }

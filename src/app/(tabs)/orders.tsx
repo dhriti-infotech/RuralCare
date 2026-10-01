@@ -1,9 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Modal,
+  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -14,232 +14,470 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
+  cancelPatientRequest,
   getPatientRequestOffers,
   getPatientRequests,
-  cancelPatientRequest,
-  type NurseServiceRequestStatus,
-  type PatientNurseOffer,
-  type PatientServiceRequest,
+  PatientNurseOffer,
+  PatientServiceRequest,
 } from "@/api/patientRequests";
 
-const statusLabels: Record<NurseServiceRequestStatus, string> = {
+const STATUS = {
+  SEARCHING: "SEARCHING",
+  OFFERED: "OFFERED",
+  ACCEPTED: "ACCEPTED",
+  EN_ROUTE: "EN_ROUTE",
+  ARRIVED: "ARRIVED",
+  IN_SERVICE: "IN_SERVICE",
+  COMPLETED: "COMPLETED",
+  CANCELLED: "CANCELLED",
+  EXPIRED: "EXPIRED",
+} as const;
+
+const STATUS_LABELS: Record<string, string> = {
   SEARCHING: "Finding a nurse",
   OFFERED: "Nurse notified",
   ACCEPTED: "Nurse assigned",
   EN_ROUTE: "Nurse is on the way",
   ARRIVED: "Nurse has arrived",
-  IN_SERVICE: "Service in progress",
+  IN_SERVICE: "Care in progress",
   COMPLETED: "Completed",
   CANCELLED: "Cancelled",
   EXPIRED: "Expired",
 };
 
-const statusColors: Record<NurseServiceRequestStatus, string> = {
+const STATUS_COLORS: Record<string, string> = {
   SEARCHING: "#1D4ED8",
   OFFERED: "#1D4ED8",
   ACCEPTED: "#15803D",
   EN_ROUTE: "#15803D",
   ARRIVED: "#15803D",
   IN_SERVICE: "#15803D",
-  COMPLETED: "#475569",
+  COMPLETED: "#15803D",
   CANCELLED: "#B91C1C",
   EXPIRED: "#B45309",
 };
 
+type ExtendedRequest = PatientServiceRequest & {
+  nurseName?: string;
+  professionalName?: string;
+  amount?: number | string;
+  price?: number | string;
+  totalAmount?: number | string;
+  paymentMethod?: string;
+  address?: string;
+  location?: string;
+  careType?: string;
+  requesterName?: string;
+  orderedBy?: string;
+  serviceType?: string;
+  patientName?: string;
+  scheduledAt?: string;
+  requestedAt?: string;
+  createdAt?: string;
+  createdDate?: string;
+  requestDate?: string;
+};
+
+function getRequestDate(request: PatientServiceRequest) {
+  const item = request as ExtendedRequest;
+
+  return (
+    item.scheduledAt ||
+    item.requestedAt ||
+    item.createdAt ||
+    item.createdDate ||
+    item.requestDate ||
+    null
+  );
+}
+
+function formatDate(dateValue?: string | null) {
+  if (!dateValue) {
+    return "Date not available";
+  }
+
+  const date = new Date(dateValue);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Date not available";
+  }
+
+  return date.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatTime(dateValue?: string | null) {
+  if (!dateValue) {
+    return "";
+  }
+
+  const date = new Date(dateValue);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toLocaleTimeString("en-IN", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function formatAmount(value?: number | string) {
+  if (value === undefined || value === null || value === "") {
+    return "—";
+  }
+
+  const amount = Number(value);
+
+  if (Number.isNaN(amount)) {
+    return String(value);
+  }
+
+  return `₹${amount.toLocaleString("en-IN")}`;
+}
+
+function getServiceLabel(request: PatientServiceRequest) {
+  const item = request as ExtendedRequest;
+
+  const value = item.careType || item.serviceType;
+
+  if (!value) {
+    return "Home Care";
+  }
+
+  return value
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getServiceIcon(request: PatientServiceRequest) {
+  const service = getServiceLabel(request).toLowerCase();
+
+  if (service.includes("elder")) {
+    return "heart-outline";
+  }
+
+  if (service.includes("post")) {
+    return "medkit-outline";
+  }
+
+  if (service.includes("doctor")) {
+    return "medical-outline";
+  }
+
+  return "person-outline";
+}
+
+function getStatusColor(status?: string) {
+  return STATUS_COLORS[status || ""] || "#64748B";
+}
+
+function getStatusLabel(status?: string) {
+  return STATUS_LABELS[status || ""] || "Order placed";
+}
+
 export default function OrdersScreen() {
   const [requests, setRequests] = useState<PatientServiceRequest[]>([]);
-  const [offersByRequestId, setOffersByRequestId] = useState<Record<string, PatientNurseOffer[]>>({});
+  const [offersByRequestId, setOffersByRequestId] = useState<
+    Record<string, PatientNurseOffer[]>
+  >({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [cancelRequest, setCancelRequest] = useState<PatientServiceRequest | null>(null);
+
+  const [cancelRequest, setCancelRequest] =
+    useState<PatientServiceRequest | null>(null);
   const [canceling, setCanceling] = useState(false);
-  const [cancelError, setCancelError] = useState<string | null>(null);
 
-  const loadOffersForRequests = useCallback(async (data: PatientServiceRequest[]) => {
-    const pendingRequests = data.filter(
-      (request) => request.status === "SEARCHING" || request.status === "OFFERED"
-    );
+  const loadOffersForRequests = useCallback(
+    async (requestList: PatientServiceRequest[]) => {
+      const eligibleRequests = requestList.filter(
+        (request) =>
+          request.status === STATUS.SEARCHING ||
+          request.status === STATUS.OFFERED,
+      );
 
-    const offerEntries = await Promise.all(
-      pendingRequests.map(async (request) => {
-        try {
-          const offers = await getPatientRequestOffers(request.requestId);
-          return [request.requestId, offers] as const;
-        } catch (offerError) {
-          console.warn(`Unable to load offers for request ${request.requestId}`, offerError);
-          return [request.requestId, []] as const;
-        }
-      })
-    );
+      if (eligibleRequests.length === 0) {
+        setOffersByRequestId({});
+        return;
+      }
 
-    setOffersByRequestId(Object.fromEntries(offerEntries));
-  }, []);
+      const entries = await Promise.all(
+        eligibleRequests.map(async (request) => {
+          try {
+            const offers = await getPatientRequestOffers(request.id);
 
-  const loadRequests = useCallback(async (isRefresh = false) => {
+            return [request.id, offers] as const;
+          } catch {
+            return [request.id, []] as const;
+          }
+        }),
+      );
+
+      setOffersByRequestId(Object.fromEntries(entries));
+    },
+    [],
+  );
+
+  const loadRequests = useCallback(async () => {
     try {
       setError(null);
-      if (isRefresh) setRefreshing(true);
-      else setLoading(true);
 
-      const data = await getPatientRequests();
-      setRequests(data);
-      await loadOffersForRequests(data);
+      const response = await getPatientRequests();
+
+      const sorted = [...response].sort((a, b) => {
+        const dateA = getRequestDate(a);
+        const dateB = getRequestDate(b);
+
+        if (!dateA && !dateB) {
+          return 0;
+        }
+
+        if (!dateA) {
+          return 1;
+        }
+
+        if (!dateB) {
+          return -1;
+        }
+
+        return new Date(dateB).getTime() - new Date(dateA).getTime();
+      });
+
+      setRequests(sorted);
+
+      await loadOffersForRequests(sorted);
     } catch (err: any) {
-      console.warn("Unable to load patient requests", err);
-      setError(err?.message ?? "Unable to load your requests.");
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Unable to load your orders.",
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, [loadOffersForRequests]);
 
-  const refreshRequestsSilently = useCallback(async () => {
-    try {
-      const data = await getPatientRequests();
-      setRequests(data);
-      await loadOffersForRequests(data);
-    } catch (err) {
-      console.warn("Unable to refresh patient requests", err);
-    }
-  }, [loadOffersForRequests]);
-
   useFocusEffect(
     useCallback(() => {
-      void loadRequests();
-    }, [loadRequests])
+      loadRequests();
+    }, [loadRequests]),
   );
 
   useEffect(() => {
     const interval = setInterval(() => {
-      void refreshRequestsSilently();
+      loadRequests();
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [refreshRequestsSilently]);
+  }, [loadRequests]);
 
-  const getStatusPresentation = (request: PatientServiceRequest) => {
-    const offers = offersByRequestId[request.requestId] ?? [];
+  const openRequest = useCallback((request: PatientServiceRequest) => {
+    router.push({
+      pathname: "/order-details",
+      params: {
+        order: JSON.stringify(request),
+      },
+    });
+  }, []);
 
-    if (request.status === "SEARCHING") {
-      const hasActiveOffer = offers.some((offer) => offer.status === "OFFERED");
-      const hasDeclinedOffer = offers.some((offer) => offer.status === "DECLINED");
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadRequests();
+  }, [loadRequests]);
 
-      if (!hasActiveOffer && hasDeclinedOffer) {
-        return { label: "Nurse declined — finding another nurse", color: "#B45309" };
-      }
+  const handleCancelRequest = useCallback(async () => {
+    if (!cancelRequest) {
+      return;
     }
-
-    if (request.status === "OFFERED") {
-      const activeOfferCount = offers.filter((offer) => offer.status === "OFFERED").length;
-      return {
-        label: `${activeOfferCount || offers.length} nurse${(activeOfferCount || offers.length) === 1 ? "" : "s"} notified`,
-        color: statusColors[request.status],
-      };
-    }
-
-    return {
-      label: statusLabels[request.status],
-      color: statusColors[request.status],
-    };
-  };
-
-  const canCancelRequest = (request: PatientServiceRequest) =>
-    request.status === "SEARCHING" || request.status === "OFFERED";
-
-  const handleCancelRequest = async () => {
-    if (!cancelRequest || canceling) return;
 
     try {
       setCanceling(true);
-      setCancelError(null);
-      const updatedRequest = await cancelPatientRequest(cancelRequest.requestId);
+
+      await cancelPatientRequest(cancelRequest.id);
 
       setRequests((current) =>
         current.map((request) =>
-          request.requestId === updatedRequest.requestId ? updatedRequest : request
-        )
+          request.id === cancelRequest.id
+            ? {
+                ...request,
+                status: STATUS.CANCELLED,
+              }
+            : request,
+        ),
       );
-      setOffersByRequestId((current) => ({
-        ...current,
-        [updatedRequest.requestId]: [],
-      }));
+
       setCancelRequest(null);
+
+      Alert.alert("Care cancelled", "Your care request has been cancelled.");
     } catch (err: any) {
-      setCancelError(err?.message ?? "Unable to cancel this request. Please try again.");
+      Alert.alert(
+        "Unable to cancel",
+        err?.response?.data?.message ||
+          err?.message ||
+          "We couldn't cancel this request.",
+      );
     } finally {
       setCanceling(false);
     }
-  };
+  }, [cancelRequest]);
 
-  const openRequest = (request: PatientServiceRequest) => {
-    const trackingStatuses: NurseServiceRequestStatus[] = [
-      "ACCEPTED",
-      "EN_ROUTE",
-      "ARRIVED",
-      "IN_SERVICE",
-    ];
+  const canCancelRequest = useCallback(
+    (request: PatientServiceRequest) =>
+      request.status === STATUS.SEARCHING || request.status === STATUS.OFFERED,
+    [],
+  );
 
-    if (trackingStatuses.includes(request.status)) {
-      router.push({
-        pathname: "/nurse-on-the-way",
-        params: { requestId: request.requestId },
-      });
-      return;
+  const orderCountText = useMemo(() => {
+    if (requests.length === 0) {
+      return "Your care requests will appear here.";
     }
 
-    if (request.status === "COMPLETED") {
-      router.push({
-        pathname: "/rate-service",
-        params: {
-          requestId: request.requestId,
-          nurseName: request.professionalName || "Your nurse",
-          serviceType: request.serviceType,
-          amount: String(request.offeredPrice ?? ""),
-        },
-      });
-      return;
-    }
+    return `${requests.length} ${requests.length === 1 ? "order" : "orders"}`;
+  }, [requests.length]);
 
-    router.push({
-      pathname: "/nurse-request-submitted",
-      params: {
-        requestId: request.requestId,
-        patientName: request.patientName,
-        serviceType: request.serviceType,
-        careType: request.serviceType,
-        urgency: request.priority === "URGENT" ? "asap" : "scheduled",
-      },
-    });
+  const renderOrderCard = (request: PatientServiceRequest) => {
+    const extendedRequest = request as ExtendedRequest;
+
+    const requestDate = getRequestDate(request);
+    const status = request.status || "";
+    const statusColor = getStatusColor(status);
+
+    const offers = offersByRequestId[request.id] || [];
+
+    const professionalName =
+      extendedRequest.nurseName ||
+      extendedRequest.professionalName ||
+      (offers.length > 0 ? offers[0]?.nurseName : undefined);
+
+    const amount =
+      extendedRequest.totalAmount ??
+      extendedRequest.amount ??
+      extendedRequest.price;
+
+    return (
+      <View key={request.id} style={styles.orderWrapper}>
+        <TouchableOpacity
+          activeOpacity={0.8}
+          style={styles.orderCard}
+          onPress={() => openRequest(request)}
+        >
+          <View style={styles.cardTopRow}>
+            <View style={styles.serviceIcon}>
+              <Ionicons
+                name={getServiceIcon(request) as any}
+                size={21}
+                color="#0A9FB5"
+              />
+            </View>
+
+            <View style={styles.serviceInfo}>
+              <Text style={styles.serviceTitle}>
+                {getServiceLabel(request)}
+              </Text>
+
+              <View style={styles.dateRow}>
+                <Ionicons name="calendar-outline" size={13} color="#64748B" />
+
+                <Text style={styles.dateText}>
+                  {formatDate(requestDate)}
+                  {formatTime(requestDate)
+                    ? ` • ${formatTime(requestDate)}`
+                    : ""}
+                </Text>
+              </View>
+            </View>
+
+            <View
+              style={[
+                styles.statusBadge,
+                {
+                  backgroundColor:
+                    request.status === STATUS.COMPLETED
+                      ? "#DCFCE7"
+                      : `${statusColor}12`,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.statusDot,
+                  {
+                    backgroundColor: statusColor,
+                  },
+                ]}
+              />
+
+              <Text
+                style={[
+                  styles.statusText,
+                  {
+                    color: statusColor,
+                  },
+                ]}
+              >
+                {getStatusLabel(status)}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Care for</Text>
+
+            <Text style={styles.detailValue} numberOfLines={1}>
+              {extendedRequest.patientName || "You"}
+            </Text>
+          </View>
+
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Care professional</Text>
+
+            <Text style={styles.detailValue} numberOfLines={1}>
+              {professionalName ||
+                (status === STATUS.CANCELLED ? "—" : "Being assigned")}
+            </Text>
+          </View>
+
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Care amount</Text>
+
+            <Text style={styles.amountText}>{formatAmount(amount)}</Text>
+          </View>
+
+          <View style={styles.viewDetailsRow}>
+            <Text style={styles.viewDetailsText}>View order details</Text>
+
+            <Ionicons name="chevron-forward" size={18} color="#0A9FB5" />
+          </View>
+        </TouchableOpacity>
+
+        {canCancelRequest(request) && (
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={() => setCancelRequest(request)}
+          >
+            <Text style={styles.cancelButtonText}>Cancel request</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
   };
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.content}>
-          <ActivityIndicator size="large" color="#2563EB" />
-          <Text style={styles.loadingText}>Loading your requests...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#0A9FB5" />
 
-  if (requests.length === 0) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.content}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="clipboard-outline" size={36} color="#2563EB" />
-          </View>
-
-          <Text style={styles.title}>Your Requests & Orders</Text>
-
-          <Text style={styles.subtitle}>
-            Your healthcare service requests, medicine orders,
-            and equipment orders will appear here.
-          </Text>
-
-          {error && <Text style={styles.errorText}>{error}</Text>}
+          <Text style={styles.loadingText}>Loading your care...</Text>
         </View>
       </SafeAreaView>
     );
@@ -248,158 +486,105 @@ export default function OrdersScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => void loadRequests(true)}
-            tintColor="#2563EB"
+            onRefresh={handleRefresh}
+            tintColor="#0A9FB5"
           />
         }
-        showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.pageTitle}>Your Requests & Orders</Text>
-        <Text style={styles.pageSubtitle}>
-          Track your healthcare service requests and orders.
-        </Text>
+        <View style={styles.header}>
+          <Text style={styles.title}>Your Care</Text>
 
-        {requests.map((request) => (
-          <View
-            key={request.requestId}
-            style={styles.requestCard}
-          >
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => openRequest(request)}
-            >
-              <View style={styles.requestTopRow}>
-              <View style={styles.requestIcon}>
-                <Ionicons name="medical-outline" size={23} color="#2563EB" />
-              </View>
+          <Text style={styles.subtitle}>{orderCountText}</Text>
+        </View>
 
-              <View style={styles.requestMain}>
-                <Text style={styles.serviceType} numberOfLines={1}>
-                  {request.serviceType}
-                </Text>
-                <Text style={styles.patientName} numberOfLines={1}>
-                  {request.patientName}
-                </Text>
-              </View>
+        {error ? (
+          <View style={styles.errorCard}>
+            <Ionicons name="alert-circle-outline" size={22} color="#B91C1C" />
 
-              <Ionicons name="chevron-forward" size={21} color="#94A3B8" />
-            </View>
-
-            <View style={styles.requestDivider} />
-
-            <View style={styles.requestBottomRow}>
-              {(() => {
-                const status = getStatusPresentation(request);
-                return (
-                  <View style={styles.statusBadge}>
-                    <View
-                      style={[
-                        styles.statusDot,
-                        { backgroundColor: status.color },
-                      ]}
-                    />
-                    <Text
-                      style={[
-                        styles.statusText,
-                        { color: status.color },
-                      ]}
-                    >
-                      {status.label}
-                    </Text>
-                  </View>
-                );
-              })()}
-
-              <Text style={styles.price}>₹{request.offeredPrice.toFixed(0)}</Text>
-            </View>
-
-            <View style={styles.paymentRow}>
-              <Ionicons name={request.paymentMethod === "COD" ? "cash-outline" : "phone-portrait-outline"} size={16} color={request.paymentMethod === "COD" ? "#16A34A" : "#2563EB"} />
-              <Text style={[styles.paymentText, { color: request.paymentMethod === "COD" ? "#166534" : "#1D4ED8" }]}>
-                Payment: {request.paymentMethod === "COD" ? "Cash on Delivery" : "UPI"}
+            <View style={styles.errorContent}>
+              <Text style={styles.errorTitle}>
+                We couldn't load your orders
               </Text>
-            </View>
 
-              {request.status === "ACCEPTED" && request.professionalName && (
-                <View style={styles.assignedRow}>
-                  <Ionicons name="person-circle-outline" size={18} color="#15803D" />
-                  <Text style={styles.assignedText}>
-                    Assigned to {request.professionalName}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
+              <Text style={styles.errorText}>{error}</Text>
 
-            {canCancelRequest(request) && (
               <TouchableOpacity
-                style={styles.cancelButton}
-                activeOpacity={0.85}
-                onPress={() => {
-                  setCancelError(null);
-                  setCancelRequest(request);
-                }}
-                disabled={canceling}
+                onPress={loadRequests}
+                style={styles.retryButton}
               >
-                <Ionicons name="close-circle-outline" size={17} color="#B91C1C" />
-                <Text style={styles.cancelButtonText}>Cancel Request</Text>
+                <Text style={styles.retryText}>Try again</Text>
               </TouchableOpacity>
-            )}
+            </View>
           </View>
-        ))}
-      </ScrollView>
-
-      <Modal
-        visible={cancelRequest !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => !canceling && setCancelRequest(null)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.cancelModal}>
-            <View style={styles.cancelIcon}>
-              <Ionicons name="close" size={26} color="#B91C1C" />
+        ) : requests.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIcon}>
+              <Ionicons name="clipboard-outline" size={30} color="#0A9FB5" />
             </View>
 
-            <Text style={styles.cancelTitle}>Cancel request?</Text>
-            <Text style={styles.cancelMessage}>
-              Are you sure you want to cancel this nursing service request?\n\n
-              CareNow will stop looking for a professional for this request.
+            <Text style={styles.emptyTitle}>No care orders yet</Text>
+
+            <Text style={styles.emptyText}>
+              When you request care, your order and its progress will appear
+              here.
             </Text>
 
-            {cancelError && (
-              <Text style={styles.cancelError}>{cancelError}</Text>
-            )}
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={() => router.push("/request-nurse")}
+            >
+              <Text style={styles.primaryButtonText}>Get care at home</Text>
+
+              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.ordersList}>{requests.map(renderOrderCard)}</View>
+        )}
+      </ScrollView>
+
+      {cancelRequest && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.cancelModal}>
+            <View style={styles.modalIcon}>
+              <Ionicons name="close-circle-outline" size={30} color="#B91C1C" />
+            </View>
+
+            <Text style={styles.modalTitle}>Cancel this request?</Text>
+
+            <Text style={styles.modalText}>
+              Are you sure you want to cancel this care request?
+            </Text>
 
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={styles.keepButton}
-                onPress={() => setCancelRequest(null)}
                 disabled={canceling}
-                activeOpacity={0.85}
+                onPress={() => setCancelRequest(null)}
               >
-                <Text style={styles.keepButtonText}>Keep Request</Text>
+                <Text style={styles.keepButtonText}>Keep request</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.confirmCancelButton}
-                onPress={() => void handleCancelRequest()}
                 disabled={canceling}
-                activeOpacity={0.85}
+                onPress={handleCancelRequest}
               >
                 {canceling ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.confirmCancelText}>Cancel Request</Text>
+                  <Text style={styles.confirmCancelText}>Cancel request</Text>
                 )}
               </TouchableOpacity>
             </View>
           </View>
         </View>
-      </Modal>
+      )}
     </SafeAreaView>
   );
 }
@@ -407,139 +592,99 @@ export default function OrdersScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#F7FBFC",
   },
 
   content: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 35,
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 32,
   },
 
-  iconContainer: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
+  header: {
     marginBottom: 20,
   },
 
   title: {
-    fontSize: 21,
-    fontWeight: "800",
-    color: "#0F172A",
-    textAlign: "center",
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#10242C",
   },
 
   subtitle: {
-    marginTop: 10,
-    fontSize: 13,
-    color: "#64748B",
-    textAlign: "center",
-    lineHeight: 20,
-  },
-
-  loadingText: {
-    marginTop: 12,
-    fontSize: 13,
+    marginTop: 5,
+    fontSize: 14,
     color: "#64748B",
   },
 
-  errorText: {
-    marginTop: 18,
-    fontSize: 12,
-    color: "#B91C1C",
-    textAlign: "center",
+  ordersList: {
+    gap: 14,
   },
 
-  listContent: {
-    paddingHorizontal: 20,
-    paddingTop: 28,
-    paddingBottom: 30,
+  orderWrapper: {
+    marginBottom: 2,
   },
 
-  pageTitle: {
-    fontSize: 23,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
-
-  pageSubtitle: {
-    marginTop: 7,
-    marginBottom: 20,
-    fontSize: 13,
-    color: "#64748B",
-  },
-
-  requestCard: {
+  orderCard: {
     backgroundColor: "#FFFFFF",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 14,
+    borderColor: "#D9E8EB",
     padding: 15,
-    marginBottom: 12,
   },
 
-  requestTopRow: {
+  cardTopRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
   },
 
-  requestIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#EFF6FF",
+  serviceIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: "#EAF8FA",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginRight: 11,
   },
 
-  requestMain: {
+  serviceInfo: {
     flex: 1,
+    paddingTop: 1,
+    paddingRight: 8,
   },
 
-  serviceType: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#1E293B",
+  serviceTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#182A33",
   },
 
-  patientName: {
-    marginTop: 4,
-    fontSize: 12,
-    color: "#64748B",
-  },
-
-  requestDivider: {
-    height: 1,
-    backgroundColor: "#F1F5F9",
-    marginVertical: 13,
-  },
-
-  requestBottomRow: {
+  dateRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    marginTop: 6,
+    gap: 5,
+  },
+
+  dateText: {
+    fontSize: 12,
+    color: "#64748B",
   },
 
   statusBadge: {
+    minHeight: 26,
+    borderRadius: 13,
+    paddingHorizontal: 9,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#EFF6FF",
-    borderRadius: 20,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
+    gap: 5,
   },
 
   statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    marginRight: 6,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
 
   statusText: {
@@ -547,128 +692,246 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
-  price: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#1E293B",
+  divider: {
+    height: 1,
+    backgroundColor: "#EEF3F4",
+    marginVertical: 13,
   },
 
-  paymentRow: { flexDirection: "row", alignItems: "center", marginTop: 9, gap: 6 },
-  paymentText: { fontSize: 10, fontWeight: "700" },
+  detailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
 
-  cancelButton: {
-    marginTop: 12,
-    height: 40,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#FECACA",
-    backgroundColor: "#FEF2F2",
+  detailLabel: {
+    fontSize: 13,
+    color: "#64748B",
+  },
+
+  detailValue: {
+    maxWidth: "58%",
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#243640",
+    textAlign: "right",
+  },
+
+  amountText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#182A33",
+  },
+
+  viewDetailsRow: {
+    marginTop: 7,
+    paddingTop: 11,
+    borderTopWidth: 1,
+    borderTopColor: "#EEF3F4",
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
+    justifyContent: "space-between",
+  },
+
+  viewDetailsText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0A9FB5",
+  },
+
+  cancelButton: {
+    alignSelf: "flex-end",
+    marginTop: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 5,
   },
 
   cancelButtonText: {
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "600",
     color: "#B91C1C",
   },
 
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.55)",
+  emptyCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#D9E8EB",
+    padding: 24,
+    alignItems: "center",
+    marginTop: 10,
+  },
+
+  emptyIcon: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    backgroundColor: "#EAF8FA",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 24,
+    marginBottom: 15,
+  },
+
+  emptyTitle: {
+    fontSize: 19,
+    fontWeight: "700",
+    color: "#182A33",
+  },
+
+  emptyText: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: "#64748B",
+    textAlign: "center",
+    marginTop: 7,
+    maxWidth: 310,
+  },
+
+  primaryButton: {
+    marginTop: 20,
+    backgroundColor: "#0A9FB5",
+    borderRadius: 12,
+    minHeight: 48,
+    paddingHorizontal: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+
+  primaryButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+
+  errorCard: {
+    backgroundColor: "#FFF7F7",
+    borderWidth: 1,
+    borderColor: "#F1CCCC",
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: "row",
+    gap: 12,
+  },
+
+  errorContent: {
+    flex: 1,
+  },
+
+  errorTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#7F1D1D",
+  },
+
+  errorText: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: "#991B1B",
+    marginTop: 4,
+  },
+
+  retryButton: {
+    marginTop: 10,
+    alignSelf: "flex-start",
+  },
+
+  retryText: {
+    color: "#0A7281",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: "#64748B",
+  },
+
+  modalOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: "rgba(15, 23, 42, 0.42)",
+    justifyContent: "flex-end",
   },
 
   cancelModal: {
-    width: "100%",
     backgroundColor: "#FFFFFF",
-    borderRadius: 22,
-    padding: 22,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 22,
+    paddingBottom: 30,
   },
 
-  cancelIcon: {
+  modalIcon: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: "#FEF2F2",
+    backgroundColor: "#FFF1F2",
     alignItems: "center",
     justifyContent: "center",
-    alignSelf: "center",
+    marginBottom: 13,
   },
 
-  cancelTitle: {
-    marginTop: 15,
+  modalTitle: {
     fontSize: 20,
-    fontWeight: "800",
-    color: "#0F172A",
-    textAlign: "center",
+    fontWeight: "700",
+    color: "#182A33",
   },
 
-  cancelMessage: {
-    marginTop: 9,
-    fontSize: 13,
-    lineHeight: 20,
+  modalText: {
+    fontSize: 14,
+    lineHeight: 21,
     color: "#64748B",
-    textAlign: "center",
-  },
-
-  cancelError: {
-    marginTop: 10,
-    fontSize: 11,
-    color: "#B91C1C",
-    textAlign: "center",
+    marginTop: 7,
   },
 
   modalActions: {
-    marginTop: 20,
+    flexDirection: "row",
     gap: 10,
+    marginTop: 22,
   },
 
   keepButton: {
-    height: 46,
+    flex: 1,
+    minHeight: 48,
     borderRadius: 12,
-    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#D7E8EB",
     alignItems: "center",
     justifyContent: "center",
   },
 
   keepButtonText: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#2563EB",
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#334155",
   },
 
   confirmCancelButton: {
-    height: 46,
+    flex: 1,
+    minHeight: 48,
     borderRadius: 12,
-    backgroundColor: "#DC2626",
+    backgroundColor: "#B91C1C",
     alignItems: "center",
     justifyContent: "center",
   },
 
   confirmCancelText: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#FFFFFF",
-  },
-
-  assignedRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 11,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: "#DCFCE7",
-  },
-
-  assignedText: {
-    marginLeft: 6,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "700",
-    color: "#15803D",
+    color: "#FFFFFF",
   },
 });

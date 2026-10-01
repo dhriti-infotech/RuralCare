@@ -36,11 +36,39 @@ type ServiceLocation = {
   address: string;
 };
 
+const COLORS = {
+  primary: "#0F766E",
+  primaryDark: "#115E59",
+  primaryLight: "#F0FDFA",
+  primarySoft: "#CCFBF1",
+
+  success: "#15803D",
+  successDark: "#166534",
+  successLight: "#F0FDF4",
+  successSoft: "#DCFCE7",
+
+  warning: "#B45309",
+  warningLight: "#FFFBEB",
+
+  info: "#0369A1",
+  infoLight: "#F0F9FF",
+
+  background: "#F8FAFC",
+  surface: "#FFFFFF",
+
+  text: "#0F172A",
+  textSecondary: "#64748B",
+  textMuted: "#94A3B8",
+
+  border: "#E2E8F0",
+  borderStrong: "#CBD5E1",
+};
+
 const careOptions: CareOption[] = [
   {
     id: "general",
     title: "General Nursing Care",
-    description: "Basic nursing attention at home",
+    description: "Basic nursing attention and support at home",
     icon: "medkit-outline",
   },
   {
@@ -52,7 +80,7 @@ const careOptions: CareOption[] = [
   {
     id: "post-hospital",
     title: "Post-Hospital Care",
-    description: "Support after discharge from hospital",
+    description: "Support and monitoring after hospital discharge",
     icon: "fitness-outline",
   },
   {
@@ -73,12 +101,10 @@ export default function RequestNurseScreen() {
   const { user } = useAuth();
 
   const [step, setStep] = useState<Step>(1);
-
   const [selectedCare, setSelectedCare] = useState("general");
   const [otherCare, setOtherCare] = useState("");
 
   const [selectedLocationId, setSelectedLocationId] = useState("self");
-
   const [showLocationModal, setShowLocationModal] = useState(false);
 
   const [patientName, setPatientName] = useState(user?.name ?? "");
@@ -99,7 +125,6 @@ export default function RequestNurseScreen() {
   );
 
   const [showDatePicker, setShowDatePicker] = useState(false);
-
   const [showTimePicker, setShowTimePicker] = useState(false);
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("UPI");
@@ -107,13 +132,10 @@ export default function RequestNurseScreen() {
   const [notes, setNotes] = useState("");
 
   const [latitude, setLatitude] = useState<number | null>(null);
-
   const [longitude, setLongitude] = useState<number | null>(null);
 
   const [detectedAddress, setDetectedAddress] = useState("");
-
   const [detectingLocation, setDetectingLocation] = useState(false);
-
   const [submitting, setSubmitting] = useState(false);
 
   const selectedCareOption = useMemo(
@@ -149,7 +171,7 @@ export default function RequestNurseScreen() {
   const continueFromStep1 = () => {
     if (selectedCare === "other" && !otherCare.trim()) {
       Alert.alert(
-        "Care required",
+        "Care details needed",
         "Please tell us what kind of care you need.",
       );
       return;
@@ -325,7 +347,6 @@ export default function RequestNurseScreen() {
         paymentMethod,
         priority: urgency === "asap" ? "URGENT" : "NORMAL",
         notes: notes.trim() || undefined,
-
         scheduledFor:
           urgency === "scheduled" ? scheduledDate.toISOString() : undefined,
       });
@@ -345,7 +366,7 @@ export default function RequestNurseScreen() {
       Alert.alert(
         "Request failed",
         error?.message ||
-          "We couldn't create your nurse request. Please try again.",
+          "We couldn't create your care request. Please try again.",
       );
     } finally {
       setSubmitting(false);
@@ -388,7 +409,7 @@ export default function RequestNurseScreen() {
     <>
       <View style={styles.hero}>
         <View style={styles.heroIcon}>
-          <Ionicons name="medical-outline" size={32} color="#2563EB" />
+          <Ionicons name="medical-outline" size={32} color={COLORS.primary} />
         </View>
 
         <Text style={styles.heroTitle}>What care do you need?</Text>
@@ -398,7 +419,7 @@ export default function RequestNurseScreen() {
         </Text>
       </View>
 
-      <Text style={styles.sectionTitle}>Select care type</Text>
+      <Text style={styles.sectionTitle}>Care type</Text>
 
       <View style={styles.careList}>
         {careOptions.map((option) => {
@@ -417,7 +438,7 @@ export default function RequestNurseScreen() {
                 <Ionicons
                   name={option.icon}
                   size={24}
-                  color={selected ? "#2563EB" : "#64748B"}
+                  color={selected ? COLORS.primary : COLORS.textSecondary}
                 />
               </View>
 
@@ -450,7 +471,7 @@ export default function RequestNurseScreen() {
             value={otherCare}
             onChangeText={setOtherCare}
             placeholder="e.g. Injection, catheter care..."
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={COLORS.textMuted}
             style={styles.textInput}
             multiline
             maxLength={120}
@@ -464,14 +485,14 @@ export default function RequestNurseScreen() {
     <>
       <View style={styles.heroCompact}>
         <View style={styles.heroIconSmall}>
-          <Ionicons name="person-outline" size={26} color="#2563EB" />
+          <Ionicons name="person-outline" size={26} color={COLORS.primary} />
         </View>
 
-        <View style={{ flex: 1 }}>
+        <View style={styles.heroCompactContent}>
           <Text style={styles.heroTitleSmall}>Who needs the nurse?</Text>
 
           <Text style={styles.heroSubtitleSmall}>
-            Select the person and where they need care.
+            Tell us who we're caring for and where.
           </Text>
         </View>
       </View>
@@ -484,7 +505,7 @@ export default function RequestNurseScreen() {
         style={styles.selectedPersonCard}
       >
         <View style={styles.personAvatar}>
-          <Ionicons name="person" size={22} color="#2563EB" />
+          <Ionicons name="person" size={22} color={COLORS.primary} />
         </View>
 
         <View style={styles.personInfo}>
@@ -497,7 +518,7 @@ export default function RequestNurseScreen() {
           </Text>
         </View>
 
-        <Ionicons name="chevron-forward" size={21} color="#94A3B8" />
+        <Ionicons name="chevron-forward" size={21} color={COLORS.textMuted} />
       </TouchableOpacity>
 
       <View style={styles.patientNameContainer}>
@@ -507,7 +528,7 @@ export default function RequestNurseScreen() {
           value={patientName}
           onChangeText={setPatientName}
           placeholder="Enter patient's name"
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={COLORS.textMuted}
           style={styles.textInput}
         />
       </View>
@@ -518,7 +539,7 @@ export default function RequestNurseScreen() {
         style={styles.addAddressButton}
       >
         <View style={styles.addAddressIcon}>
-          <Ionicons name="add" size={22} color="#2563EB" />
+          <Ionicons name="add" size={22} color={COLORS.primary} />
         </View>
 
         <View style={styles.addSpace}>
@@ -531,7 +552,7 @@ export default function RequestNurseScreen() {
           </Text>
         </View>
 
-        <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
+        <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
       </TouchableOpacity>
 
       <Text style={styles.sectionTitle}>Care location</Text>
@@ -539,10 +560,14 @@ export default function RequestNurseScreen() {
       <TouchableOpacity
         activeOpacity={0.85}
         onPress={detectLocation}
-        style={styles.locationCard}
+        disabled={detectingLocation}
+        style={[
+          styles.locationCard,
+          detectedAddress && styles.locationCardDetected,
+        ]}
       >
         <View style={styles.locationIcon}>
-          <Ionicons name="navigate-outline" size={23} color="#2563EB" />
+          <Ionicons name="navigate-outline" size={23} color={COLORS.primary} />
         </View>
 
         <View style={styles.addSpace}>
@@ -560,19 +585,25 @@ export default function RequestNurseScreen() {
         </View>
 
         <Ionicons
-          name={detectingLocation ? "sync-outline" : "chevron-forward"}
+          name={
+            detectingLocation
+              ? "sync-outline"
+              : detectedAddress
+                ? "checkmark-circle-outline"
+                : "chevron-forward"
+          }
           size={20}
-          color="#94A3B8"
+          color={detectedAddress ? COLORS.success : COLORS.textMuted}
         />
       </TouchableOpacity>
 
       {detectedAddress && (
         <View style={styles.detectedAddress}>
           <View style={styles.detectedIcon}>
-            <Ionicons name="checkmark" size={15} color="#16A34A" />
+            <Ionicons name="checkmark" size={15} color={COLORS.success} />
           </View>
 
-          <View style={{ flex: 1 }}>
+          <View style={styles.detectedContent}>
             <Text style={styles.detectedTitle}>Service location</Text>
 
             <Text style={styles.detectedText}>{detectedAddress}</Text>
@@ -590,10 +621,10 @@ export default function RequestNurseScreen() {
     <>
       <View style={styles.heroCompact}>
         <View style={styles.heroIconSmall}>
-          <Ionicons name="calendar-outline" size={26} color="#2563EB" />
+          <Ionicons name="calendar-outline" size={26} color={COLORS.primary} />
         </View>
 
-        <View style={{ flex: 1 }}>
+        <View style={styles.heroCompactContent}>
           <Text style={styles.heroTitleSmall}>When do you need the nurse?</Text>
 
           <Text style={styles.heroSubtitleSmall}>
@@ -612,7 +643,7 @@ export default function RequestNurseScreen() {
           ]}
         >
           <View style={styles.timingIcon}>
-            <Ionicons name="flash-outline" size={23} color="#2563EB" />
+            <Ionicons name="flash-outline" size={23} color={COLORS.primary} />
           </View>
 
           <View style={styles.timingContent}>
@@ -639,7 +670,11 @@ export default function RequestNurseScreen() {
           ]}
         >
           <View style={styles.timingIcon}>
-            <Ionicons name="calendar-outline" size={23} color="#2563EB" />
+            <Ionicons
+              name="calendar-outline"
+              size={23}
+              color={COLORS.primary}
+            />
           </View>
 
           <View style={styles.timingContent}>
@@ -661,7 +696,25 @@ export default function RequestNurseScreen() {
 
       {urgency === "scheduled" && (
         <View style={styles.scheduleBox}>
-          <Text style={styles.scheduleTitle}>Choose your preferred time</Text>
+          <View style={styles.scheduleHeader}>
+            <View style={styles.scheduleHeaderIcon}>
+              <Ionicons
+                name="calendar-outline"
+                size={17}
+                color={COLORS.primary}
+              />
+            </View>
+
+            <View>
+              <Text style={styles.scheduleTitle}>
+                Choose your preferred time
+              </Text>
+
+              <Text style={styles.scheduleSubtitle}>
+                Select when you'd like care at home
+              </Text>
+            </View>
+          </View>
 
           <View style={styles.scheduleRow}>
             <TouchableOpacity
@@ -669,10 +722,14 @@ export default function RequestNurseScreen() {
               onPress={() => setShowDatePicker(true)}
               style={styles.dateTimeButton}
             >
-              <Ionicons name="calendar-outline" size={20} color="#2563EB" />
+              <Ionicons
+                name="calendar-outline"
+                size={20}
+                color={COLORS.primary}
+              />
 
-              <View>
-                <Text style={styles.dateTimeLabel}>Date</Text>
+              <View style={styles.dateTimeText}>
+                <Text style={styles.dateTimeLabel}>DATE</Text>
 
                 <Text style={styles.dateTimeValue}>
                   {scheduledDate.toLocaleDateString("en-IN", {
@@ -689,10 +746,10 @@ export default function RequestNurseScreen() {
               onPress={() => setShowTimePicker(true)}
               style={styles.dateTimeButton}
             >
-              <Ionicons name="time-outline" size={20} color="#2563EB" />
+              <Ionicons name="time-outline" size={20} color={COLORS.primary} />
 
-              <View>
-                <Text style={styles.dateTimeLabel}>Time</Text>
+              <View style={styles.dateTimeText}>
+                <Text style={styles.dateTimeLabel}>TIME</Text>
 
                 <Text style={styles.dateTimeValue}>
                   {scheduledDate.toLocaleTimeString("en-IN", {
@@ -706,7 +763,11 @@ export default function RequestNurseScreen() {
 
           {!isScheduledTimeValid && (
             <View style={styles.warningBox}>
-              <Ionicons name="alert-circle-outline" size={18} color="#D97706" />
+              <Ionicons
+                name="alert-circle-outline"
+                size={18}
+                color={COLORS.warning}
+              />
 
               <Text style={styles.warningText}>
                 Please choose a future date and time.
@@ -716,25 +777,24 @@ export default function RequestNurseScreen() {
         </View>
       )}
 
-      <Text style={styles.sectionTitle}>Estimated service price</Text>
+      <Text style={styles.sectionTitle}>Estimated care amount</Text>
 
       <View style={styles.priceCard}>
         <View style={styles.priceIcon}>
-          <Ionicons name="wallet-outline" size={25} color="#16A34A" />
+          <Ionicons name="wallet-outline" size={24} color={COLORS.success} />
         </View>
 
         <View style={styles.priceContent}>
           <Text style={styles.priceLabel}>Nursing visit</Text>
 
           <Text style={styles.priceDescription}>
-            Final amount depends on distance and selected care.
+            Final amount depends on distance and care needs.
           </Text>
         </View>
 
         <View style={styles.priceValueContainer}>
           <Text style={styles.priceValue}>₹199</Text>
-
-          <Text style={styles.priceTo}>– ₹299</Text>
+          <Text style={styles.priceTo}>to ₹299</Text>
         </View>
       </View>
 
@@ -749,22 +809,28 @@ export default function RequestNurseScreen() {
             paymentMethod === "UPI" && styles.paymentCardSelected,
           ]}
         >
-          <View style={styles.paymentIcon}>
-            <Ionicons name="phone-portrait-outline" size={23} color="#2563EB" />
+          <View style={styles.paymentTopRow}>
+            <View style={styles.paymentIcon}>
+              <Ionicons
+                name="phone-portrait-outline"
+                size={22}
+                color={COLORS.primary}
+              />
+            </View>
+
+            <View
+              style={[
+                styles.radio,
+                paymentMethod === "UPI" && styles.radioSelected,
+              ]}
+            >
+              {paymentMethod === "UPI" && <View style={styles.radioDot} />}
+            </View>
           </View>
 
           <Text style={styles.paymentTitle}>UPI</Text>
 
           <Text style={styles.paymentSubtitle}>Pay digitally</Text>
-
-          <View
-            style={[
-              styles.radio,
-              paymentMethod === "UPI" && styles.radioSelected,
-            ]}
-          >
-            {paymentMethod === "UPI" && <View style={styles.radioDot} />}
-          </View>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -775,22 +841,24 @@ export default function RequestNurseScreen() {
             paymentMethod === "COD" && styles.paymentCardSelected,
           ]}
         >
-          <View style={styles.paymentIcon}>
-            <Ionicons name="cash-outline" size={23} color="#2563EB" />
+          <View style={styles.paymentTopRow}>
+            <View style={styles.paymentIcon}>
+              <Ionicons name="cash-outline" size={22} color={COLORS.primary} />
+            </View>
+
+            <View
+              style={[
+                styles.radio,
+                paymentMethod === "COD" && styles.radioSelected,
+              ]}
+            >
+              {paymentMethod === "COD" && <View style={styles.radioDot} />}
+            </View>
           </View>
 
           <Text style={styles.paymentTitle}>Cash</Text>
 
           <Text style={styles.paymentSubtitle}>Pay after service</Text>
-
-          <View
-            style={[
-              styles.radio,
-              paymentMethod === "COD" && styles.radioSelected,
-            ]}
-          >
-            {paymentMethod === "COD" && <View style={styles.radioDot} />}
-          </View>
         </TouchableOpacity>
       </View>
 
@@ -803,7 +871,7 @@ export default function RequestNurseScreen() {
         value={notes}
         onChangeText={setNotes}
         placeholder="Anything the nurse should know?"
-        placeholderTextColor="#94A3B8"
+        placeholderTextColor={COLORS.textMuted}
         style={styles.notesInput}
         multiline
         numberOfLines={4}
@@ -817,13 +885,17 @@ export default function RequestNurseScreen() {
     <>
       <View style={styles.reviewHero}>
         <View style={styles.reviewSuccessIcon}>
-          <Ionicons name="checkmark-circle-outline" size={38} color="#2563EB" />
+          <Ionicons
+            name="checkmark-circle-outline"
+            size={38}
+            color={COLORS.primary}
+          />
         </View>
 
         <Text style={styles.reviewHeroTitle}>Review your request</Text>
 
         <Text style={styles.reviewHeroSubtitle}>
-          Please check the details before finding an available nurse.
+          Please check the details before we find an available nurse near you.
         </Text>
       </View>
 
@@ -907,7 +979,7 @@ export default function RequestNurseScreen() {
           value={paymentMethod === "UPI" ? "UPI" : "Cash"}
         />
 
-        <ReviewRow icon="wallet-outline" label="Price" value="₹199 – ₹299" />
+        <ReviewRow icon="wallet-outline" label="Amount" value="₹199 – ₹299" />
       </View>
 
       {notes.trim() && (
@@ -930,11 +1002,15 @@ export default function RequestNurseScreen() {
 
       <View style={styles.finalPriceCard}>
         <View style={styles.finalPriceIcon}>
-          <Ionicons name="shield-checkmark-outline" size={25} color="#16A34A" />
+          <Ionicons
+            name="shield-checkmark-outline"
+            size={24}
+            color={COLORS.success}
+          />
         </View>
 
         <View style={styles.finalPriceContent}>
-          <Text style={styles.finalPriceTitle}>Estimated total</Text>
+          <Text style={styles.finalPriceTitle}>Estimated care amount</Text>
 
           <Text style={styles.finalPriceSubtitle}>
             Final amount may vary based on distance and care requirements.
@@ -945,7 +1021,13 @@ export default function RequestNurseScreen() {
       </View>
 
       <View style={styles.infoCard}>
-        <Ionicons name="information-circle-outline" size={21} color="#2563EB" />
+        <View style={styles.infoIcon}>
+          <Ionicons
+            name="information-circle-outline"
+            size={20}
+            color={COLORS.info}
+          />
+        </View>
 
         <Text style={styles.infoText}>
           After you confirm, we'll show available nursing professionals near
@@ -964,10 +1046,10 @@ export default function RequestNurseScreen() {
             style={styles.backButton}
             activeOpacity={0.8}
           >
-            <Ionicons name="arrow-back" size={22} color="#0F172A" />
+            <Ionicons name="arrow-back" size={22} color={COLORS.text} />
           </TouchableOpacity>
 
-          <Text style={styles.headerTitle}>Nurse at Home</Text>
+          <Text style={styles.headerTitle}>Care at Home</Text>
 
           <View style={styles.headerSpacer} />
         </View>
@@ -1035,7 +1117,13 @@ export default function RequestNurseScreen() {
               onPress={submitRequest}
             >
               {submitting ? (
-                <Text style={styles.primaryButtonText}>Finding a Nurse...</Text>
+                <>
+                  <Ionicons name="sync-outline" size={19} color="#FFFFFF" />
+
+                  <Text style={styles.primaryButtonText}>
+                    Finding a Nurse...
+                  </Text>
+                </>
               ) : (
                 <>
                   <Ionicons name="search" size={19} color="#FFFFFF" />
@@ -1063,7 +1151,7 @@ export default function RequestNurseScreen() {
               <View style={styles.modalHandle} />
 
               <View style={styles.modalHeader}>
-                <View>
+                <View style={styles.modalHeaderContent}>
                   <Text style={styles.modalTitle}>Who needs the nurse?</Text>
 
                   <Text style={styles.modalSubtitle}>
@@ -1075,7 +1163,11 @@ export default function RequestNurseScreen() {
                   onPress={() => setShowLocationModal(false)}
                   style={styles.modalClose}
                 >
-                  <Ionicons name="close" size={20} color="#64748B" />
+                  <Ionicons
+                    name="close"
+                    size={20}
+                    color={COLORS.textSecondary}
+                  />
                 </TouchableOpacity>
               </View>
 
@@ -1094,7 +1186,6 @@ export default function RequestNurseScreen() {
                       activeOpacity={0.85}
                       onPress={() => {
                         setSelectedLocationId(location.id);
-
                         setPatientName(location.name);
 
                         if (location.address !== "Use my current location") {
@@ -1112,11 +1203,11 @@ export default function RequestNurseScreen() {
                         <Ionicons
                           name="person-outline"
                           size={21}
-                          color="#2563EB"
+                          color={COLORS.primary}
                         />
                       </View>
 
-                      <View style={{ flex: 1 }}>
+                      <View style={styles.modalPersonContent}>
                         <Text style={styles.modalPersonName}>
                           {location.name}
                         </Text>
@@ -1150,15 +1241,10 @@ export default function RequestNurseScreen() {
                   style={styles.modalAddAddress}
                 >
                   <View style={styles.modalAddIcon}>
-                    <Ionicons name="add" size={22} color="#2563EB" />
+                    <Ionicons name="add" size={22} color={COLORS.primary} />
                   </View>
 
-                  <View
-                    style={{
-                      flex: 1,
-                      marginLeft: 14,
-                    }}
-                  >
+                  <View style={styles.modalAddContent}>
                     <Text style={styles.modalAddTitle}>Add new address</Text>
 
                     <Text style={styles.modalAddSubtitle}>
@@ -1166,7 +1252,11 @@ export default function RequestNurseScreen() {
                     </Text>
                   </View>
 
-                  <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={COLORS.textMuted}
+                  />
                 </TouchableOpacity>
               </ScrollView>
             </View>
@@ -1206,7 +1296,7 @@ function ReviewRow({
   return (
     <View style={styles.reviewRow}>
       <View style={styles.reviewIcon}>
-        <Ionicons name={icon} size={17} color="#64748B" />
+        <Ionicons name={icon} size={17} color={COLORS.textSecondary} />
       </View>
 
       <Text style={styles.reviewLabel}>{label}</Text>
@@ -1221,19 +1311,19 @@ function ReviewRow({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: COLORS.background,
   },
 
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: COLORS.background,
   },
 
   header: {
     height: 58,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
+    borderBottomColor: COLORS.border,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
@@ -1252,7 +1342,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 17,
     fontWeight: "800",
-    color: "#0F172A",
+    color: COLORS.text,
   },
 
   headerSpacer: {
@@ -1260,12 +1350,12 @@ const styles = StyleSheet.create({
   },
 
   progressContainer: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.surface,
     paddingHorizontal: 20,
     paddingTop: 14,
     paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
+    borderBottomColor: COLORS.border,
   },
 
   progressHeader: {
@@ -1277,13 +1367,13 @@ const styles = StyleSheet.create({
   progressStep: {
     fontSize: 12,
     fontWeight: "800",
-    color: "#2563EB",
+    color: COLORS.primary,
   },
 
   progressHint: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#64748B",
+    color: COLORS.textSecondary,
   },
 
   progressTrack: {
@@ -1295,11 +1385,11 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 4,
     borderRadius: 4,
-    backgroundColor: "#E2E8F0",
+    backgroundColor: COLORS.border,
   },
 
   progressSegmentActive: {
-    backgroundColor: "#2563EB",
+    backgroundColor: COLORS.primary,
   },
 
   content: {
@@ -1320,11 +1410,15 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
 
+  heroCompactContent: {
+    flex: 1,
+  },
+
   heroIcon: {
     width: 68,
     height: 68,
     borderRadius: 22,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: COLORS.primaryLight,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 13,
@@ -1334,7 +1428,7 @@ const styles = StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 18,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: COLORS.primaryLight,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1342,7 +1436,7 @@ const styles = StyleSheet.create({
   heroTitle: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#0F172A",
+    color: COLORS.text,
     textAlign: "center",
   },
 
@@ -1350,7 +1444,7 @@ const styles = StyleSheet.create({
     marginTop: 7,
     fontSize: 13,
     lineHeight: 19,
-    color: "#64748B",
+    color: COLORS.textSecondary,
     textAlign: "center",
     maxWidth: 320,
   },
@@ -1358,20 +1452,20 @@ const styles = StyleSheet.create({
   heroTitleSmall: {
     fontSize: 19,
     fontWeight: "800",
-    color: "#0F172A",
+    color: COLORS.text,
   },
 
   heroSubtitleSmall: {
     fontSize: 12,
     lineHeight: 18,
-    color: "#64748B",
+    color: COLORS.textSecondary,
     marginTop: 4,
   },
 
   sectionTitle: {
     fontSize: 16,
     fontWeight: "800",
-    color: "#0F172A",
+    color: COLORS.text,
     marginBottom: 10,
     marginTop: 20,
   },
@@ -1382,18 +1476,18 @@ const styles = StyleSheet.create({
 
   careCard: {
     minHeight: 86,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.surface,
     borderRadius: 15,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: COLORS.border,
     padding: 13,
     flexDirection: "row",
     alignItems: "center",
   },
 
   careCardSelected: {
-    borderColor: "#2563EB",
-    backgroundColor: "#F8FBFF",
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryLight,
   },
 
   careIcon: {
@@ -1406,7 +1500,7 @@ const styles = StyleSheet.create({
   },
 
   careIconSelected: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: COLORS.primarySoft,
   },
 
   careContent: {
@@ -1422,13 +1516,13 @@ const styles = StyleSheet.create({
   },
 
   careTitleSelected: {
-    color: "#0F172A",
+    color: COLORS.text,
   },
 
   careDescription: {
     fontSize: 11.5,
     lineHeight: 17,
-    color: "#64748B",
+    color: COLORS.textSecondary,
     marginTop: 3,
   },
 
@@ -1437,28 +1531,28 @@ const styles = StyleSheet.create({
     height: 21,
     borderRadius: 11,
     borderWidth: 1.5,
-    borderColor: "#CBD5E1",
+    borderColor: COLORS.borderStrong,
     alignItems: "center",
     justifyContent: "center",
   },
 
   radioSelected: {
-    borderColor: "#2563EB",
+    borderColor: COLORS.primary,
   },
 
   radioDot: {
     width: 11,
     height: 11,
     borderRadius: 6,
-    backgroundColor: "#2563EB",
+    backgroundColor: COLORS.primary,
   },
 
   otherCareContainer: {
     marginTop: 14,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.surface,
     borderRadius: 15,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: COLORS.border,
     padding: 14,
   },
 
@@ -1473,11 +1567,11 @@ const styles = StyleSheet.create({
     minHeight: 48,
     borderRadius: 11,
     borderWidth: 1,
-    borderColor: "#CBD5E1",
-    backgroundColor: "#FFFFFF",
+    borderColor: COLORS.borderStrong,
+    backgroundColor: COLORS.surface,
     paddingHorizontal: 13,
     fontSize: 14,
-    color: "#0F172A",
+    color: COLORS.text,
   },
 
   patientNameContainer: {
@@ -1485,9 +1579,9 @@ const styles = StyleSheet.create({
   },
 
   selectedPersonCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
-    borderColor: "#2563EB",
+    borderColor: COLORS.primary,
     borderRadius: 15,
     padding: 13,
     flexDirection: "row",
@@ -1498,7 +1592,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 14,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: COLORS.primaryLight,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1511,21 +1605,21 @@ const styles = StyleSheet.create({
   personName: {
     fontSize: 15,
     fontWeight: "800",
-    color: "#0F172A",
+    color: COLORS.text,
   },
 
   personRelation: {
     fontSize: 12,
-    color: "#64748B",
+    color: COLORS.textSecondary,
     marginTop: 3,
   },
 
   addAddressButton: {
     marginTop: 11,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.surface,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: COLORS.border,
     padding: 12,
     flexDirection: "row",
     alignItems: "center",
@@ -1535,7 +1629,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 13,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: COLORS.primaryLight,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1548,31 +1642,36 @@ const styles = StyleSheet.create({
   addAddressTitle: {
     fontSize: 13,
     fontWeight: "800",
-    color: "#0F172A",
+    color: COLORS.text,
   },
 
   addAddressSubtitle: {
     fontSize: 11,
-    color: "#64748B",
+    color: COLORS.textSecondary,
     marginTop: 3,
   },
 
   locationCard: {
     minHeight: 76,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.surface,
     borderRadius: 15,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: COLORS.border,
     padding: 13,
     flexDirection: "row",
     alignItems: "center",
+  },
+
+  locationCardDetected: {
+    borderColor: "#BBF7D0",
+    backgroundColor: COLORS.successLight,
   },
 
   locationIcon: {
     width: 45,
     height: 45,
     borderRadius: 14,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: COLORS.primaryLight,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1580,20 +1679,20 @@ const styles = StyleSheet.create({
   locationTitle: {
     fontSize: 13,
     fontWeight: "800",
-    color: "#0F172A",
+    color: COLORS.text,
   },
 
   locationSubtitle: {
     fontSize: 11,
     lineHeight: 16,
-    color: "#64748B",
+    color: COLORS.textSecondary,
     marginTop: 3,
     marginRight: 8,
   },
 
   detectedAddress: {
     marginTop: 10,
-    backgroundColor: "#F0FDF4",
+    backgroundColor: COLORS.successLight,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "#BBF7D0",
@@ -1606,29 +1705,33 @@ const styles = StyleSheet.create({
     width: 25,
     height: 25,
     borderRadius: 13,
-    backgroundColor: "#DCFCE7",
+    backgroundColor: COLORS.successSoft,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 9,
   },
 
+  detectedContent: {
+    flex: 1,
+  },
+
   detectedTitle: {
     fontSize: 11,
     fontWeight: "800",
-    color: "#166534",
+    color: COLORS.successDark,
   },
 
   detectedText: {
     fontSize: 11.5,
     lineHeight: 17,
-    color: "#166534",
+    color: COLORS.successDark,
     marginTop: 2,
   },
 
   changeText: {
     fontSize: 11,
     fontWeight: "800",
-    color: "#2563EB",
+    color: COLORS.primary,
     marginLeft: 8,
   },
 
@@ -1638,25 +1741,25 @@ const styles = StyleSheet.create({
 
   timingCard: {
     minHeight: 78,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.surface,
     borderRadius: 15,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: COLORS.border,
     padding: 12,
     flexDirection: "row",
     alignItems: "center",
   },
 
   timingCardSelected: {
-    borderColor: "#2563EB",
-    backgroundColor: "#F8FBFF",
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryLight,
   },
 
   timingIcon: {
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: COLORS.primaryLight,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1669,29 +1772,50 @@ const styles = StyleSheet.create({
   timingTitle: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#0F172A",
+    color: COLORS.text,
   },
 
   timingSubtitle: {
     fontSize: 11.5,
-    color: "#64748B",
+    color: COLORS.textSecondary,
     marginTop: 3,
   },
 
   scheduleBox: {
     marginTop: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.surface,
     borderRadius: 15,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: COLORS.border,
     padding: 14,
+  },
+
+  scheduleHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+
+  scheduleHeaderIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: COLORS.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
   },
 
   scheduleTitle: {
     fontSize: 13,
     fontWeight: "800",
     color: "#334155",
-    marginBottom: 11,
+  },
+
+  scheduleSubtitle: {
+    fontSize: 10.5,
+    color: COLORS.textSecondary,
+    marginTop: 2,
   },
 
   scheduleRow: {
@@ -1703,25 +1827,30 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 64,
     borderRadius: 12,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: COLORS.background,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: COLORS.border,
     paddingHorizontal: 11,
     flexDirection: "row",
     alignItems: "center",
     gap: 9,
   },
 
+  dateTimeText: {
+    flex: 1,
+  },
+
   dateTimeLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#64748B",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    color: COLORS.textSecondary,
   },
 
   dateTimeValue: {
     fontSize: 12,
     fontWeight: "800",
-    color: "#0F172A",
+    color: COLORS.text,
     marginTop: 2,
   },
 
@@ -1729,7 +1858,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     padding: 10,
     borderRadius: 10,
-    backgroundColor: "#FFFBEB",
+    backgroundColor: COLORS.warningLight,
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
@@ -1743,7 +1872,7 @@ const styles = StyleSheet.create({
   },
 
   priceCard: {
-    backgroundColor: "#F0FDF4",
+    backgroundColor: COLORS.successLight,
     borderWidth: 1,
     borderColor: "#BBF7D0",
     borderRadius: 15,
@@ -1756,7 +1885,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 14,
-    backgroundColor: "#DCFCE7",
+    backgroundColor: COLORS.successSoft,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1770,13 +1899,13 @@ const styles = StyleSheet.create({
   priceLabel: {
     fontSize: 13,
     fontWeight: "800",
-    color: "#166534",
+    color: COLORS.successDark,
   },
 
   priceDescription: {
     fontSize: 10.5,
     lineHeight: 15,
-    color: "#15803D",
+    color: COLORS.success,
     marginTop: 3,
   },
 
@@ -1787,13 +1916,14 @@ const styles = StyleSheet.create({
   priceValue: {
     fontSize: 17,
     fontWeight: "900",
-    color: "#166534",
+    color: COLORS.successDark,
   },
 
   priceTo: {
     fontSize: 10,
     fontWeight: "700",
-    color: "#15803D",
+    color: COLORS.success,
+    marginTop: 1,
   },
 
   paymentRow: {
@@ -1803,57 +1933,63 @@ const styles = StyleSheet.create({
 
   paymentCard: {
     flex: 1,
-    minHeight: 130,
-    backgroundColor: "#FFFFFF",
+    minHeight: 126,
+    backgroundColor: COLORS.surface,
     borderRadius: 15,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: COLORS.border,
     padding: 13,
   },
 
   paymentCardSelected: {
-    borderColor: "#2563EB",
-    backgroundColor: "#F8FBFF",
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryLight,
+  },
+
+  paymentTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 9,
   },
 
   paymentIcon: {
     width: 42,
     height: 42,
     borderRadius: 13,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: COLORS.primaryLight,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 9,
   },
 
   paymentTitle: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#0F172A",
+    color: COLORS.text,
   },
 
   paymentSubtitle: {
     fontSize: 10.5,
-    color: "#64748B",
+    color: COLORS.textSecondary,
     marginTop: 3,
   },
 
   optionalText: {
     fontSize: 10,
     fontWeight: "500",
-    color: "#94A3B8",
+    color: COLORS.textMuted,
   },
 
   notesInput: {
     minHeight: 100,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: COLORS.border,
     borderRadius: 14,
     paddingHorizontal: 13,
     paddingVertical: 12,
     fontSize: 13,
-    color: "#0F172A",
+    color: COLORS.text,
   },
 
   reviewHero: {
@@ -1866,7 +2002,7 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 23,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: COLORS.primaryLight,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 12,
@@ -1875,23 +2011,23 @@ const styles = StyleSheet.create({
   reviewHeroTitle: {
     fontSize: 21,
     fontWeight: "800",
-    color: "#0F172A",
+    color: COLORS.text,
   },
 
   reviewHeroSubtitle: {
     marginTop: 6,
     fontSize: 12.5,
     lineHeight: 18,
-    color: "#64748B",
+    color: COLORS.textSecondary,
     textAlign: "center",
     maxWidth: 320,
   },
 
   reviewCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: COLORS.border,
     padding: 14,
     marginBottom: 12,
   },
@@ -1908,19 +2044,19 @@ const styles = StyleSheet.create({
   reviewTitle: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#0F172A",
+    color: COLORS.text,
   },
 
   reviewSectionHint: {
     fontSize: 10.5,
-    color: "#94A3B8",
+    color: COLORS.textMuted,
     marginTop: 2,
   },
 
   editText: {
     fontSize: 12,
     fontWeight: "800",
-    color: "#2563EB",
+    color: COLORS.primary,
   },
 
   reviewRow: {
@@ -1933,7 +2069,7 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 9,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: COLORS.background,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1942,7 +2078,7 @@ const styles = StyleSheet.create({
     width: 62,
     marginLeft: 8,
     fontSize: 11,
-    color: "#64748B",
+    color: COLORS.textSecondary,
   },
 
   reviewValue: {
@@ -1961,7 +2097,7 @@ const styles = StyleSheet.create({
   },
 
   finalPriceCard: {
-    backgroundColor: "#F0FDF4",
+    backgroundColor: COLORS.successLight,
     borderWidth: 1,
     borderColor: "#BBF7D0",
     borderRadius: 16,
@@ -1975,7 +2111,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 14,
-    backgroundColor: "#DCFCE7",
+    backgroundColor: COLORS.successSoft,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1989,38 +2125,41 @@ const styles = StyleSheet.create({
   finalPriceTitle: {
     fontSize: 13,
     fontWeight: "800",
-    color: "#166534",
+    color: COLORS.successDark,
   },
 
   finalPriceSubtitle: {
     fontSize: 10.5,
     lineHeight: 15,
-    color: "#15803D",
+    color: COLORS.success,
     marginTop: 3,
   },
 
   finalPrice: {
     fontSize: 17,
     fontWeight: "900",
-    color: "#166534",
+    color: COLORS.successDark,
   },
 
   infoCard: {
     padding: 13,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: COLORS.infoLight,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#DBEAFE",
+    borderColor: "#BAE6FD",
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 9,
+  },
+
+  infoIcon: {
+    marginRight: 9,
   },
 
   infoText: {
     flex: 1,
     fontSize: 11,
     lineHeight: 17,
-    color: "#1E40AF",
+    color: "#075985",
   },
 
   bottomBar: {
@@ -2028,9 +2167,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.surface,
     borderTopWidth: 1,
-    borderTopColor: "#E2E8F0",
+    borderTopColor: COLORS.border,
     paddingHorizontal: 16,
     paddingTop: 11,
     paddingBottom: 12,
@@ -2039,7 +2178,7 @@ const styles = StyleSheet.create({
   primaryButton: {
     height: 53,
     borderRadius: 14,
-    backgroundColor: "#2563EB",
+    backgroundColor: COLORS.primary,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -2067,7 +2206,7 @@ const styles = StyleSheet.create({
   },
 
   locationModal: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: "78%",
@@ -2080,7 +2219,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 4,
     borderRadius: 4,
-    backgroundColor: "#CBD5E1",
+    backgroundColor: COLORS.borderStrong,
     marginBottom: 15,
   },
 
@@ -2091,15 +2230,19 @@ const styles = StyleSheet.create({
     paddingBottom: 15,
   },
 
+  modalHeaderContent: {
+    flex: 1,
+  },
+
   modalTitle: {
     fontSize: 18,
     fontWeight: "800",
-    color: "#0F172A",
+    color: COLORS.text,
   },
 
   modalSubtitle: {
     fontSize: 11,
-    color: "#64748B",
+    color: COLORS.textSecondary,
     marginTop: 3,
   },
 
@@ -2107,7 +2250,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: COLORS.background,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -2116,7 +2259,7 @@ const styles = StyleSheet.create({
     minHeight: 76,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: COLORS.border,
     padding: 11,
     marginBottom: 9,
     flexDirection: "row",
@@ -2124,36 +2267,40 @@ const styles = StyleSheet.create({
   },
 
   modalLocationItemSelected: {
-    borderColor: "#2563EB",
-    backgroundColor: "#F8FBFF",
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryLight,
   },
 
   modalPersonIcon: {
     width: 43,
     height: 43,
     borderRadius: 13,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: COLORS.primaryLight,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 10,
   },
 
+  modalPersonContent: {
+    flex: 1,
+  },
+
   modalPersonName: {
     fontSize: 13,
     fontWeight: "800",
-    color: "#0F172A",
+    color: COLORS.text,
   },
 
   modalPersonRelation: {
     fontSize: 10.5,
-    color: "#64748B",
+    color: COLORS.textSecondary,
     marginTop: 2,
   },
 
   modalPersonAddress: {
     fontSize: 10.5,
     lineHeight: 15,
-    color: "#64748B",
+    color: COLORS.textSecondary,
     marginTop: 4,
   },
 
@@ -2161,9 +2308,9 @@ const styles = StyleSheet.create({
     minHeight: 70,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "#99F6E4",
     borderStyle: "dashed",
-    backgroundColor: "#F8FBFF",
+    backgroundColor: COLORS.primaryLight,
     padding: 11,
     flexDirection: "row",
     alignItems: "center",
@@ -2173,20 +2320,25 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 13,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: COLORS.primarySoft,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  modalAddContent: {
+    flex: 1,
+    marginLeft: 14,
   },
 
   modalAddTitle: {
     fontSize: 13,
     fontWeight: "800",
-    color: "#2563EB",
+    color: COLORS.primary,
   },
 
   modalAddSubtitle: {
     fontSize: 10.5,
-    color: "#64748B",
+    color: COLORS.textSecondary,
     marginTop: 3,
   },
 });

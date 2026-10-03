@@ -14,9 +14,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
+  cancelPatientRequest,
   getPatientRequestOffers,
   getPatientRequests,
-  cancelPatientRequest,
   type NurseServiceRequestStatus,
   type PatientNurseOffer,
   type PatientServiceRequest,
@@ -41,58 +41,71 @@ const statusColors: Record<NurseServiceRequestStatus, string> = {
   EN_ROUTE: "#15803D",
   ARRIVED: "#15803D",
   IN_SERVICE: "#15803D",
-  COMPLETED: "#475569",
+  COMPLETED: "#11a906",
   CANCELLED: "#B91C1C",
   EXPIRED: "#B45309",
 };
 
 export default function OrdersScreen() {
   const [requests, setRequests] = useState<PatientServiceRequest[]>([]);
-  const [offersByRequestId, setOffersByRequestId] = useState<Record<string, PatientNurseOffer[]>>({});
+  const [offersByRequestId, setOffersByRequestId] = useState<
+    Record<string, PatientNurseOffer[]>
+  >({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [cancelRequest, setCancelRequest] = useState<PatientServiceRequest | null>(null);
+  const [cancelRequest, setCancelRequest] =
+    useState<PatientServiceRequest | null>(null);
   const [canceling, setCanceling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
 
-  const loadOffersForRequests = useCallback(async (data: PatientServiceRequest[]) => {
-    const pendingRequests = data.filter(
-      (request) => request.status === "SEARCHING" || request.status === "OFFERED"
-    );
+  const loadOffersForRequests = useCallback(
+    async (data: PatientServiceRequest[]) => {
+      const pendingRequests = data.filter(
+        (request) =>
+          request.status === "SEARCHING" || request.status === "OFFERED",
+      );
 
-    const offerEntries = await Promise.all(
-      pendingRequests.map(async (request) => {
-        try {
-          const offers = await getPatientRequestOffers(request.requestId);
-          return [request.requestId, offers] as const;
-        } catch (offerError) {
-          console.warn(`Unable to load offers for request ${request.requestId}`, offerError);
-          return [request.requestId, []] as const;
-        }
-      })
-    );
+      const offerEntries = await Promise.all(
+        pendingRequests.map(async (request) => {
+          try {
+            const offers = await getPatientRequestOffers(request.requestId);
+            return [request.requestId, offers] as const;
+          } catch (offerError) {
+            console.warn(
+              `Unable to load offers for request ${request.requestId}`,
+              offerError,
+            );
+            return [request.requestId, []] as const;
+          }
+        }),
+      );
 
-    setOffersByRequestId(Object.fromEntries(offerEntries));
-  }, []);
+      setOffersByRequestId(Object.fromEntries(offerEntries));
+    },
+    [],
+  );
 
-  const loadRequests = useCallback(async (isRefresh = false) => {
-    try {
-      setError(null);
-      if (isRefresh) setRefreshing(true);
-      else setLoading(true);
+  const loadRequests = useCallback(
+    async (isRefresh = false) => {
+      try {
+        setError(null);
+        if (isRefresh) setRefreshing(true);
+        else setLoading(true);
 
-      const data = await getPatientRequests();
-      setRequests(data);
-      await loadOffersForRequests(data);
-    } catch (err: any) {
-      console.warn("Unable to load patient requests", err);
-      setError(err?.message ?? "Unable to load your requests.");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [loadOffersForRequests]);
+        const data = await getPatientRequests();
+        setRequests(data);
+        await loadOffersForRequests(data);
+      } catch (err: any) {
+        console.warn("Unable to load patient requests", err);
+        setError(err?.message ?? "Unable to load your requests.");
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [loadOffersForRequests],
+  );
 
   const refreshRequestsSilently = useCallback(async () => {
     try {
@@ -107,7 +120,7 @@ export default function OrdersScreen() {
   useFocusEffect(
     useCallback(() => {
       void loadRequests();
-    }, [loadRequests])
+    }, [loadRequests]),
   );
 
   useEffect(() => {
@@ -123,15 +136,22 @@ export default function OrdersScreen() {
 
     if (request.status === "SEARCHING") {
       const hasActiveOffer = offers.some((offer) => offer.status === "OFFERED");
-      const hasDeclinedOffer = offers.some((offer) => offer.status === "DECLINED");
+      const hasDeclinedOffer = offers.some(
+        (offer) => offer.status === "DECLINED",
+      );
 
       if (!hasActiveOffer && hasDeclinedOffer) {
-        return { label: "Nurse declined — finding another nurse", color: "#B45309" };
+        return {
+          label: "Nurse declined — finding another nurse",
+          color: "#B45309",
+        };
       }
     }
 
     if (request.status === "OFFERED") {
-      const activeOfferCount = offers.filter((offer) => offer.status === "OFFERED").length;
+      const activeOfferCount = offers.filter(
+        (offer) => offer.status === "OFFERED",
+      ).length;
       return {
         label: `${activeOfferCount || offers.length} nurse${(activeOfferCount || offers.length) === 1 ? "" : "s"} notified`,
         color: statusColors[request.status],
@@ -153,12 +173,16 @@ export default function OrdersScreen() {
     try {
       setCanceling(true);
       setCancelError(null);
-      const updatedRequest = await cancelPatientRequest(cancelRequest.requestId);
+      const updatedRequest = await cancelPatientRequest(
+        cancelRequest.requestId,
+      );
 
       setRequests((current) =>
         current.map((request) =>
-          request.requestId === updatedRequest.requestId ? updatedRequest : request
-        )
+          request.requestId === updatedRequest.requestId
+            ? updatedRequest
+            : request,
+        ),
       );
       setOffersByRequestId((current) => ({
         ...current,
@@ -166,10 +190,29 @@ export default function OrdersScreen() {
       }));
       setCancelRequest(null);
     } catch (err: any) {
-      setCancelError(err?.message ?? "Unable to cancel this request. Please try again.");
+      setCancelError(
+        err?.message ?? "Unable to cancel this request. Please try again.",
+      );
     } finally {
       setCanceling(false);
     }
+  };
+
+  const formatOrderDateTime = (dateValue?: string) => {
+    if (!dateValue) return "";
+
+    const date = new Date(dateValue);
+
+    if (Number.isNaN(date.getTime())) return "";
+
+    return date.toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
   };
 
   const openRequest = (request: PatientServiceRequest) => {
@@ -235,8 +278,8 @@ export default function OrdersScreen() {
           <Text style={styles.title}>Your Requests & Orders</Text>
 
           <Text style={styles.subtitle}>
-            Your healthcare service requests, medicine orders,
-            and equipment orders will appear here.
+            Your healthcare service requests, medicine orders, and equipment
+            orders will appear here.
           </Text>
 
           {error && <Text style={styles.errorText}>{error}</Text>}
@@ -264,69 +307,94 @@ export default function OrdersScreen() {
         </Text>
 
         {requests.map((request) => (
-          <View
-            key={request.requestId}
-            style={styles.requestCard}
-          >
+          <View key={request.requestId} style={styles.requestCard}>
             <TouchableOpacity
               activeOpacity={0.85}
               onPress={() => openRequest(request)}
             >
               <View style={styles.requestTopRow}>
-              <View style={styles.requestIcon}>
-                <Ionicons name="medical-outline" size={23} color="#2563EB" />
+                <View style={styles.requestIcon}>
+                  <Ionicons name="medical-outline" size={23} color="#2563EB" />
+                </View>
+
+                <View style={styles.requestMain}>
+                  <Text style={styles.serviceType} numberOfLines={1}>
+                    {request.serviceType}
+                  </Text>
+                  <Text style={styles.patientName} numberOfLines={1}>
+                    {request.patientName}
+                  </Text>
+                  <Text style={styles.orderDateTime}>
+                    Requested Time : {formatOrderDateTime(request.requestedAt)}
+                  </Text>
+                </View>
+
+                <Ionicons name="chevron-forward" size={21} color="#94A3B8" />
               </View>
 
-              <View style={styles.requestMain}>
-                <Text style={styles.serviceType} numberOfLines={1}>
-                  {request.serviceType}
-                </Text>
-                <Text style={styles.patientName} numberOfLines={1}>
-                  {request.patientName}
-                </Text>
+              <View style={styles.requestDivider} />
+
+              <View style={styles.requestBottomRow}>
+                {(() => {
+                  const status = getStatusPresentation(request);
+
+                  return (
+                    <View style={styles.statusBadge}>
+                      <View
+                        style={[
+                          styles.statusDot,
+                          { backgroundColor: status.color },
+                        ]}
+                      />
+                      <Text
+                        style={[styles.statusText, { color: status.color }]}
+                      >
+                        {status.label}
+                      </Text>
+                    </View>
+                  );
+                })()}
+
+                <View style={styles.priceDateContainer}>
+                  <Text style={styles.price}>
+                    ₹{request.offeredPrice.toFixed(0)}
+                  </Text>
+                </View>
               </View>
 
-              <Ionicons name="chevron-forward" size={21} color="#94A3B8" />
-            </View>
-
-            <View style={styles.requestDivider} />
-
-            <View style={styles.requestBottomRow}>
-              {(() => {
-                const status = getStatusPresentation(request);
-                return (
-                  <View style={styles.statusBadge}>
-                    <View
-                      style={[
-                        styles.statusDot,
-                        { backgroundColor: status.color },
-                      ]}
-                    />
-                    <Text
-                      style={[
-                        styles.statusText,
-                        { color: status.color },
-                      ]}
-                    >
-                      {status.label}
-                    </Text>
-                  </View>
-                );
-              })()}
-
-              <Text style={styles.price}>₹{request.offeredPrice.toFixed(0)}</Text>
-            </View>
-
-            <View style={styles.paymentRow}>
-              <Ionicons name={request.paymentMethod === "COD" ? "cash-outline" : "phone-portrait-outline"} size={16} color={request.paymentMethod === "COD" ? "#16A34A" : "#2563EB"} />
-              <Text style={[styles.paymentText, { color: request.paymentMethod === "COD" ? "#166534" : "#1D4ED8" }]}>
-                Payment: {request.paymentMethod === "COD" ? "Cash on Delivery" : "UPI"}
-              </Text>
-            </View>
+              <View style={styles.paymentRow}>
+                <Ionicons
+                  name={
+                    request.paymentMethod === "COD"
+                      ? "cash-outline"
+                      : "phone-portrait-outline"
+                  }
+                  size={16}
+                  color={
+                    request.paymentMethod === "COD" ? "#16A34A" : "#2563EB"
+                  }
+                />
+                <Text
+                  style={[
+                    styles.paymentText,
+                    {
+                      color:
+                        request.paymentMethod === "COD" ? "#166534" : "#1D4ED8",
+                    },
+                  ]}
+                >
+                  Payment:{" "}
+                  {request.paymentMethod === "COD" ? "Cash on Delivery" : "UPI"}
+                </Text>
+              </View>
 
               {request.status === "ACCEPTED" && request.professionalName && (
                 <View style={styles.assignedRow}>
-                  <Ionicons name="person-circle-outline" size={18} color="#15803D" />
+                  <Ionicons
+                    name="person-circle-outline"
+                    size={18}
+                    color="#15803D"
+                  />
                   <Text style={styles.assignedText}>
                     Assigned to {request.professionalName}
                   </Text>
@@ -344,7 +412,11 @@ export default function OrdersScreen() {
                 }}
                 disabled={canceling}
               >
-                <Ionicons name="close-circle-outline" size={17} color="#B91C1C" />
+                <Ionicons
+                  name="close-circle-outline"
+                  size={17}
+                  color="#B91C1C"
+                />
                 <Text style={styles.cancelButtonText}>Cancel Request</Text>
               </TouchableOpacity>
             )}
@@ -553,7 +625,12 @@ const styles = StyleSheet.create({
     color: "#1E293B",
   },
 
-  paymentRow: { flexDirection: "row", alignItems: "center", marginTop: 9, gap: 6 },
+  paymentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 9,
+    gap: 6,
+  },
   paymentText: { fontSize: 10, fontWeight: "700" },
 
   cancelButton: {
@@ -670,5 +747,15 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: "#15803D",
+  },
+  priceDateContainer: {
+    alignItems: "flex-end",
+  },
+
+  orderDateTime: {
+    marginTop: 5,
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "900",
   },
 });
